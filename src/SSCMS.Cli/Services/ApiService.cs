@@ -1,10 +1,5 @@
 ﻿using System.Collections.Generic;
-using System.Net;
-using RestSharp;
-using Serilog;
 using SSCMS.Cli.Abstractions;
-using SSCMS.Core.Plugins;
-using SSCMS.Utils;
 
 namespace SSCMS.Cli.Services
 {
@@ -18,6 +13,8 @@ namespace SSCMS.Cli.Services
         private const string RestUrlPluginSearch = "/plugin-search";
         private const string RestUrlPluginShow = "/plugin-show";
         private const string RestUrlReleases = "/releases";
+        private const string RestUrlThemePublish = "/theme-publish";
+        private const string RestUrlThemeUnPublish = "/theme-unpublish";
 
         private readonly IConfigService _configService;
 
@@ -68,9 +65,14 @@ namespace SSCMS.Cli.Services
             public string AccessToken { get; set; }
         }
 
-        public class UnPublishRequest
+        public class PluginUnPublishRequest
         {
             public string PluginId { get; set; }
+        }
+
+        public class ThemeUnPublishRequest
+        {
+            public string Name { get; set; }
         }
 
         public class SearchRequest
@@ -112,36 +114,6 @@ namespace SSCMS.Cli.Services
         {
             public GetReleasesCms Cms { get; set; }
             public List<GetReleasesPlugin> Plugins { get; set; }
-        }
-        
-
-        private static (bool success, TResult result, string failureMessage) ExecutePost<TRequest, TResult>(string relatedUrl, TRequest body, string accessToken = null) where TResult : class
-
-        {
-            var client = new RestClient(CloudUtils.Api.GetCliUrl(relatedUrl)) { Timeout = -1 };
-            var request = new RestRequest(Method.POST);
-            request.AddHeader("Content-Type", "application/json");
-            if (!string.IsNullOrEmpty(accessToken))
-            {
-                request.AddHeader("Authorization", $"Bearer {accessToken}");
-            }
-            request.AddParameter("application/json", TranslateUtils.JsonSerialize(body), ParameterType.RequestBody);
-            var response = client.Execute<TResult>(request);
-            if (!response.IsSuccessful)
-            {
-                if (response.StatusCode == HttpStatusCode.InternalServerError)
-                {
-                    Log.Fatal(response.Content);
-                    var error = TranslateUtils.JsonDeserialize<InternalServerError>(response.Content);
-                    if (error != null)
-                    {
-                        return (false, null, error.Message);
-                    }
-                }
-                return (false, null, response.ErrorMessage);
-            }
-
-            return (true, response.Data, null);
         }
     }
 }

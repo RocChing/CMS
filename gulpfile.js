@@ -11,7 +11,7 @@ const runSequence = require('gulp4-run-sequence');
 const ALY = require('aliyun-sdk');
 
 let os = '';
-const version = process.env.PRODUCTVERSION || '';
+const version = process.env.PRODUCTVERSION || '7.0.0';
 const timestamp = (new Date()).getTime();
 let publishDir = '';
 let htmlDict = {};
@@ -66,7 +66,7 @@ function transform(file, html) {
   return file;
 }
 
-function publish(fileName) {
+function writeOss(bucket, key, fileName) {
   var ossStream = require('aliyun-oss-upload-stream')(new ALY.OSS({
     accessKeyId: process.env.OSS_ACCESS_KEY_ID,
     secretAccessKey: process.env.OSS_SECRET_ACCESS_KEY,
@@ -75,11 +75,11 @@ function publish(fileName) {
   }));
 
   var upload = ossStream.upload({
-    Bucket: process.env.OSS_BUCKET_NAME,
-    Key: `cms/${version}/${fileName}`
+    Bucket: bucket,
+    Key: key
   });
   
-  upload.minPartSize(1048576);
+  // upload.minPartSize(1048576);
   
   var read = fs.createReadStream(`./publish/dist/${fileName}`);
   read.pipe(upload);
@@ -148,17 +148,6 @@ gulp.task("build-home", function () {
 
 gulp.task('build-clean', function(){
   return del([`./build-${os}/src/SSCMS.Web/Pages/ss-admin/**`, `./build-${os}/src/SSCMS.Web/Pages/home/**`], {force:true});
-});
-
-gulp.task("build-osx-x64", async function () {
-  os = 'osx-x64';
-  return runSequence(
-      "build-src",
-      "build-sln",
-      "build-ss-admin",
-      "build-home",
-      "build-clean"
-  );
 });
 
 gulp.task("build-linux-x64", async function () {
@@ -247,16 +236,11 @@ gulp.task("copy-js", function () {
     .pipe(gulp.dest(publishDir + "/wwwroot/sitefiles"));
 });
 
-gulp.task("copy-osx-x64", async function (callback) {
-  os = 'osx-x64';
-  publishDir = `./publish/sscms-${version}-${os}`;
-
-  return runSequence(
-    "copy-files",
-    "copy-sscms-linux",
-    "copy-css",
-    "copy-js"
-  );
+gulp.task("replace-localhost", function () {
+  return gulp
+    .src("./src/SSCMS.Web/wwwroot/sitefiles/assets/js/cloud.js")
+    .pipe(replace('http://localhost:6060/', 'https://api.sscms.com/'))
+    .pipe(gulp.dest(publishDir + "/wwwroot/sitefiles/assets/js"));
 });
 
 gulp.task("copy-linux-x64", async function (callback) {
@@ -267,7 +251,8 @@ gulp.task("copy-linux-x64", async function (callback) {
     "copy-files",
     "copy-sscms-linux",
     "copy-css",
-    "copy-js"
+    "copy-js",
+    "replace-localhost"
   );
 });
 
@@ -279,7 +264,8 @@ gulp.task("copy-win-x64", async function (callback) {
     "copy-files",
     "copy-sscms-win",
     "copy-css",
-    "copy-js"
+    "copy-js",
+    "replace-localhost"
   );
 });
 
@@ -291,26 +277,34 @@ gulp.task("copy-win-x86", async function (callback) {
     "copy-files",
     "copy-sscms-win",
     "copy-css",
-    "copy-js"
+    "copy-js",
+    "replace-localhost"
   );
 });
 
-gulp.task("publish-osx-x64-zip", async function () {
-  publish(`sscms-${version}-osx-x64.zip`);
-});
-
 gulp.task("publish-linux-x64-tgz", async function () {
-  publish(`sscms-${version}-linux-x64.tar.gz`);
+  writeOss(process.env.OSS_BUCKET_DL, `cms/${version}/sscms-${version}-linux-x64.tar.gz`, `sscms-${version}-linux-x64.tar.gz`);
 });
 
 gulp.task("publish-linux-x64-zip", async function () {
-  publish(`sscms-${version}-linux-x64.zip`);
+  writeOss(process.env.OSS_BUCKET_DL, `cms/${version}/sscms-${version}-linux-x64.zip`, `sscms-${version}-linux-x64.zip`);
 });
 
 gulp.task("publish-win-x64-zip", async function () {
-  publish(`sscms-${version}-win-x64.zip`);
+  writeOss(process.env.OSS_BUCKET_DL, `cms/${version}/sscms-${version}-win-x64.zip`, `sscms-${version}-win-x64.zip`);
 });
 
 gulp.task("publish-win-x86-zip", async function () {
-  publish(`sscms-${version}-win-x86.zip`);
+  writeOss(process.env.OSS_BUCKET_DL, `cms/${version}/sscms-${version}-win-x86.zip`, `sscms-${version}-win-x86.zip`);
+
+//   var fileName = 'ci.js';
+//   var date = new Date();
+//   date.setHours(date.getHours() + 8);
+//   var json = `var ci = {
+//   version: '${version}',
+//   releaseDate: '${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日'
+// };`;
+  
+//   fs.writeFileSync(`./publish/dist/${fileName}`, json);
+//   writeOss(process.env.OSS_BUCKET_WWW, `assets/js/${fileName}`, fileName);
 });

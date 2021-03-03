@@ -19,7 +19,7 @@ using SSCMS.Configuration;
 
 namespace SSCMS.Cli
 {
-    internal static class Program
+    public static class Program
     {
         public static IApplication Application { get; private set; }
 
@@ -67,9 +67,10 @@ namespace SSCMS.Cli
             var assemblies = new List<Assembly> { entryAssembly }.Concat(entryAssembly.GetReferencedAssemblies().Select(Assembly.Load));
 
             var settingsManager = services.AddSettingsManager(configuration, contentRootPath, PathUtils.Combine(contentRootPath, Constants.WwwrootDirectory), entryAssembly);
-            var pluginManager = services.AddPlugins(configuration, settingsManager);
+            services.AddPlugins(configuration, settingsManager);
+            //services.AddPluginServices(pluginManager);
 
-            Application = new Application(settingsManager, pluginManager);
+            Application = new Application(settingsManager);
             services.AddSingleton<IConfiguration>(configuration);
             services.AddCache(settingsManager.Redis.ConnectionString);
 
@@ -79,16 +80,6 @@ namespace SSCMS.Cli
             services.AddCliJobs();
 
             await Application.RunAsync(args);
-
-            //try
-            //{
-
-            //}
-            //finally
-            //{
-            //    Console.WriteLine("\r\nPress any key to exit...");
-            //    Console.ReadKey();
-            //}
         }
     }
 }

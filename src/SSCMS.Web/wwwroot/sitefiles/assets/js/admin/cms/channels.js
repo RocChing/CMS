@@ -26,7 +26,6 @@ var data = utils.init({
   form: null,
   editLinkTypes: [],
   editTaxisTypes: [],
-  editEditor: null,
   styles: [],
   siteUrl: null,
   isTemplateEditable: false,
@@ -84,7 +83,7 @@ var methods = {
   insertEditor: function(attributeName, html) {
     if (!attributeName) attributeName = 'Body';
     if (!html) return;
-    UE.getEditor(attributeName, {allowDivTransToP: false, maximumWords:99999999}).execCommand('insertHTML', html);
+    utils.getEditor(attributeName).execCommand('insertHTML', html);
   },
   
   setRuleText: function(rule, isChannel) {
@@ -157,9 +156,7 @@ var methods = {
       $this.form.contentFilePathRule = res.contentFilePathRule;
 
       $this.editPanel = true;
-      setTimeout(function () {
-        $this.loadEditor();
-      }, 100);
+      utils.loadEditors($this.styles, $this.form);
     }).catch(function (error) {
       utils.error(error);
     }).then(function () {
@@ -277,39 +274,6 @@ var methods = {
     });
   },
 
-  loadEditor: function () {
-    var $this = this;
-
-    document.getElementById('form_Content1').innerHTML = '';
-    document.getElementById('form_Content2').innerHTML = '';
-
-    var E = window.wangEditor;
-    this.editEditor = new E('#form_Content1', '#form_Content2');
-    this.editEditor.customConfig.menus = [
-      'head',  // 标题
-      'bold',  // 粗体
-      'fontSize',  // 字号
-      'fontName',  // 字体
-      'italic',  // 斜体
-      'underline',  // 下划线
-      'strikeThrough',  // 删除线
-      'foreColor',  // 文字颜色
-      'backColor',  // 背景颜色
-      'link',  // 插入链接
-      'list',  // 列表
-      'justify',  // 对齐方式
-      'quote',  // 引用
-      'table',  // 表格
-      'undo',  // 撤销
-      'redo'  // 重复
-    ];
-    this.editEditor.customConfig.onchange = function (html) {
-      $this.form.content = html;
-    };
-    this.editEditor.create();
-    this.editEditor.txt.html(this.form.content);
-  },
-
   handleColumnsChange: function() {
     var listColumns = _.filter(this.columns, function(o) { return o.isList; });
     var attributeNames = _.map(listColumns, function(column) {
@@ -358,16 +322,12 @@ var methods = {
     return template;
   },
 
-  btnTemplateEditClick: function(isChannel, templateId) {
-    if (!this.isTemplateEditable) return;
-
-    var template = this.getTemplate(isChannel, templateId);
-    
-    utils.addTab('编辑:' + template.templateName, utils.getCmsUrl('templatesEditor', {
+  getTemplateEditorUrl: function(isChannel, templateId) {
+    return utils.getCmsUrl('templatesEditor', {
       siteId: this.siteId,
-      templateId: template.id,
+      templateId: templateId,
       templateType: isChannel ? 'ChannelTemplate' : 'ContentTemplate',
-    }));
+    });
   },
 
   btnEditAddGroupClick: function() {
@@ -401,6 +361,15 @@ var methods = {
 
   handleCheckChange() {
     this.channelIds = this.$refs.tree.getCheckedKeys();
+  },
+
+  btnCheckClick: function(row) {
+    if (this.channelIds.indexOf(row.value) !== -1) {
+      this.channelIds.splice(this.channelIds.indexOf(row.value), 1);
+    } else {
+      this.channelIds.push(row.value);
+    }
+    this.$refs.tree.setCheckedKeys(this.channelIds);
   },
 
   filterNode: function(value, data) {
@@ -624,6 +593,9 @@ var methods = {
 
     if (options.attributeName) {
       query.attributeName = options.attributeName;
+    }
+    if (options.no) {
+      query.no = options.no;
     }
     if (options.contentId) {
       query.contentId = options.contentId;

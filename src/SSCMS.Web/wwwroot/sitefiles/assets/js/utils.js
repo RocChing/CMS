@@ -1,29 +1,3 @@
-Object.defineProperty(Object.prototype, "getEntityValue", {
-  value: function (t) {
-    var e;
-    for (e in this) if (e.toLowerCase() == t.toLowerCase()) return this[e];
-  },
-});
-
-if (window.swal && swal.mixin) {
-  var alert = swal.mixin({
-    confirmButtonClass: "el-button el-button--primary",
-    cancelButtonClass: "el-button el-button--default",
-    buttonsStyling: false,
-  });
-}
-
-var PER_PAGE = 30;
-var DEFAULT_AVATAR_URL = '/sitefiles/assets/images/default_avatar.png';
-
-var $token = sessionStorage.getItem(ACCESS_TOKEN_NAME) || localStorage.getItem(ACCESS_TOKEN_NAME);
-var $api = axios.create({
-  baseURL: $apiUrl,
-  headers: {
-    Authorization: "Bearer " + $token,
-  },
-});
-
 var utils = {
   init: function (data) {
     return _.assign(
@@ -83,6 +57,53 @@ var utils = {
     return _.map(result[1].split(","), function (x) {
       return utils.toInt(x);
     });
+  },
+
+  loadEditors: function (styles, form) {
+    setTimeout(function () {
+      for (var i = 0; i < styles.length; i++) {
+        var style = styles[i];
+        if (style.inputType === 'TextEditor') {
+          UE.delEditor(style.attributeName);
+          var editor = utils.getEditor(style.attributeName);
+          editor.attributeName = style.attributeName;
+          editor.ready(function () {
+            this.addListener("contentChange", function () {
+              form[this.attributeName] = this.getContent();
+            });
+          });
+        }
+      }
+    }, 100);
+  },
+
+  getEditor: function (attributeName) {
+    return UE.getEditor(attributeName, {
+      allowDivTransToP: false,
+      maximumWords: 99999999,
+      initialFrameWidth:null ,
+      autoHeightEnabled: false,
+      autoFloatEnabled: false
+    });
+  },
+
+  toCamelCase: function (s) {
+    if (!s || s[0] !== s[0].toUpperCase()) {
+      return s;
+    }
+    var chars = s.split('');
+    var values = s.split('');
+    for (var i = 0; i < chars.length; i++) {
+      if (i == 1 && chars[i] !== chars[i].toUpperCase()) {
+        return values.join('');
+      }
+      var hasNext = (i + 1) < chars.length;
+      if (i > 0 && hasNext && chars[i + 1] !== chars[i + 1].toUpperCase()) {
+        return values.join('');
+      }
+      values[i] = _.toLower(chars[i]);
+    }
+    return values.join('');
   },
 
   toInt: function (val) {
@@ -381,31 +402,46 @@ var utils = {
     );
   },
 
-  notifySuccess: function (message) {
+  notifySuccess: function (message, position) {
     utils.getRootVue().$notify.success({
       title: '成功',
-      message: message
+      message: message,
+      position: position || 'top-right'
     });
   },
 
-  notifyWarning: function (message) {
+  notifyWarning: function (message, position) {
     utils.getRootVue().$notify.warning({
       title: '警告',
-      message: message
+      message: message,
+      position: position || 'top-right'
     });
   },
 
-  notifyInfo: function (message) {
+  notifyInfo: function (message, position) {
     utils.getRootVue().$notify.info({
       title: '提示',
-      message: message
+      message: message,
+      position: position || 'top-right'
     });
   },
 
-  notifyError: function (message) {
+  notifyError: function (error, position) {
+    if (!error) return;
+
+    var message = '';
+    if (error.response) {
+      message = utils.getErrorMessage(error);
+    } else if (typeof error === 'string') {
+      message = error;
+    } else {
+      message = error + '';
+    }
+
     utils.getRootVue().$notify.error({
       title: '错误',
-      message: message
+      message: message,
+      position: position || 'top-right'
     });
   },
 
@@ -443,6 +479,13 @@ var utils = {
           url: utils.getRootUrl("error", { uuid: uuid }),
         });
         return;
+      } else if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        var location = _.trimEnd(window.location.href, '/');
+        if (_.endsWith(location, '/ss-admin') || _.endsWith(location, '/home')) {
+          top.location.href = utils.getRootUrl('login');
+        } else {
+          top.location.href = utils.getRootUrl('login', {status: 401});
+        }
       }
 
       utils.getRootVue().$message({
@@ -501,21 +544,32 @@ var utils = {
     if (!config || !config.url) return false;
 
     if (!config.width) {
-      config.width = $(window).width() - 50;
+      config.width = ($(window).width() - 50) + 'px';
+    } else {
+      var width = config.width + '';
+      if (width.indexOf('%') == -1 && width.indexOf('px') == -1) {
+        config.width = width + 'px';
+      }
     }
     if (!config.height) {
-      config.height = $(window).height() - 50;
+      config.height = ($(window).height() - 50) + 'px';
+    } else {
+      var height = config.height + '';
+      if (height.indexOf('%') == -1 && height.indexOf('px') == -1) {
+        config.height = height + 'px';
+      }
     }
 
     var index = layer.open({
       type: 2,
       btn: null,
       title: config.title,
-      area: [config.width + "px", config.height + "px"],
+      area: [config.width, config.height],
       maxmin: !config.max,
       resize: !config.max,
       shadeClose: true,
       content: config.url,
+      success: config.success
     });
 
     if (config.max) {
@@ -553,16 +607,13 @@ var utils = {
     var form =  _.assign({}, value);
     for (var i = 0; i < styles.length; i++) {
       var style = styles[i];
-      var name = _.lowerFirst(style.attributeName);
+      var name = utils.toCamelCase(style.attributeName);
       if (style.inputType === 'TextEditor') {
         setTimeout(function () {
-          var editor = UE.getEditor(style.attributeName, {
-            allowDivTransToP: false,
-            maximumWords: 99999999
-          });
+          var editor = utils.getEditor(style.attributeName);
           editor.attributeName = style.attributeName;
           editor.ready(function () {
-            editor.addListener("contentChange", function () {
+            this.addListener("contentChange", function () {
               $this.form[this.attributeName] = this.getContent();
             });
           });
@@ -741,3 +792,29 @@ var utils = {
     return null;
   }
 };
+
+Object.defineProperty(Object.prototype, "getEntityValue", {
+  value: function (t) {
+    var e;
+    for (e in this) if (e.toLowerCase() == t.toLowerCase()) return this[e];
+  },
+});
+
+if (window.swal && swal.mixin) {
+  var alert = swal.mixin({
+    confirmButtonClass: "el-button el-button--primary",
+    cancelButtonClass: "el-button el-button--default",
+    buttonsStyling: false,
+  });
+}
+
+var PER_PAGE = 30;
+var DEFAULT_AVATAR_URL = '/sitefiles/assets/images/default_avatar.png';
+
+var $token = sessionStorage.getItem(ACCESS_TOKEN_NAME) || localStorage.getItem(ACCESS_TOKEN_NAME) || utils.getQueryString('accessToken');
+var $api = axios.create({
+  baseURL: $apiUrl,
+  headers: {
+    Authorization: "Bearer " + $token,
+  },
+});
